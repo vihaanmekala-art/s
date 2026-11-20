@@ -92,8 +92,18 @@
             height: 100%;
             background: linear-gradient(90deg, #00f0ff, #ff007f);
             border-radius: 999px;
-            transition: width 0.06s linear;
+            transition: width 0.06s linear, background 0.3s ease;
             box-shadow: 0 0 10px #00f0ff;
+        }
+
+        #progress-bar-fill.danger {
+            background: linear-gradient(90deg, #ff6a00, #ff0055);
+            box-shadow: 0 0 10px #ff0055;
+        }
+
+        #progress-bar-fill.complete {
+            background: linear-gradient(90deg, #00f59b, #ffe600);
+            box-shadow: 0 0 12px #00f59b;
         }
 
         #progress-text {
@@ -456,6 +466,7 @@
             font-size: 0.9rem;
             color: #94a3b8;
             text-align: center;
+            animation: pulse-hint 3s ease-in-out infinite;
         }
 
         .controls-hint span {
@@ -465,6 +476,68 @@
             padding: 2px 8px;
             border-radius: 6px;
             margin: 0 2px;
+        }
+
+        @keyframes pulse-hint {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes slide-in-up {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes glow-pulse {
+            0%, 100% { box-shadow: 0 8px 25px rgba(0, 245, 155, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.6); }
+            50% { box-shadow: 0 8px 40px rgba(0, 245, 155, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.8); }
+        }
+
+        @keyframes new-best-flash {
+            0%, 100% { color: #00f59b; text-shadow: 0 0 10px rgba(0, 245, 155, 0.5); }
+            50% { color: #ffe600; text-shadow: 0 0 20px rgba(255, 230, 0, 0.8); }
+        }
+
+        .play-btn {
+            animation: glow-pulse 2.5s ease-in-out infinite;
+        }
+
+        .overlay-screen:not(.hidden) .menu-card {
+            animation: slide-in-up 0.4s ease-out;
+        }
+
+        .overlay-screen:not(.hidden) .title-logo {
+            animation: fade-in 0.5s ease-out;
+        }
+
+        .level-card.selected {
+            animation: selected-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes selected-glow {
+            0%, 100% { box-shadow: 0 0 16px rgba(0, 240, 255, 0.25); }
+            50% { box-shadow: 0 0 24px rgba(0, 240, 255, 0.4); }
+        }
+
+        .new-best-badge {
+            color: #ffe600;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 800;
+            animation: new-best-flash 0.6s ease-in-out infinite;
+        }
+
+        .stat-value.new-record {
+            animation: new-best-flash 0.6s ease-in-out infinite;
+        }
+
+        .progress-bar-glow {
+            filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.6));
         }
     </style>
 </head>
@@ -596,6 +669,7 @@
         <div id="victoryScreen" class="overlay-screen hidden">
             <h2 class="title-logo" style="font-size: clamp(2.1rem, 5vw, 3.6rem);">LEVEL COMPLETE!</h2>
             <div class="subtitle">100% Rhythm Sync Achieved</div>
+            <div id="newBestBadge" class="new-best-badge" style="display:none; margin-bottom: 12px;">NEW BEST!</div>
 
             <div class="menu-card">
                 <div class="stats-bar" style="border-top: none; padding-top: 0;">
@@ -698,13 +772,19 @@
                 this.step = 0;
                 this.timer = null;
                 this.beatPulse = 0;
+                this.beatCount = 0;
                 this.currentLevelIdx = 0;
+                this.masterGain = null;
+                this.reverbNode = null;
             }
 
             init() {
                 if (!this.ctx) {
                     const AudioCtx = window.AudioContext || window.webkitAudioContext;
                     this.ctx = new AudioCtx();
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.value = 0.9;
+                    this.masterGain.connect(this.ctx.destination);
                 }
                 if (this.ctx.state === 'suspended') {
                     this.ctx.resume();
@@ -713,6 +793,9 @@
 
             toggleMute() {
                 this.muted = !this.muted;
+                if (this.masterGain) {
+                    this.masterGain.gain.setTargetAtTime(this.muted ? 0 : 0.9, this.ctx.currentTime, 0.05);
+                }
                 return this.muted;
             }
 
@@ -722,14 +805,14 @@
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = isShip ? 'sine' : 'square';
-                osc.frequency.setValueAtTime(isShip ? 220 : 280, now);
-                osc.frequency.exponentialRampToValueAtTime(isShip ? 380 : 620, now + 0.09);
-                gain.gain.setValueAtTime(0.08, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.frequency.setValueAtTime(isShip ? 180 : 240, now);
+                osc.frequency.exponentialRampToValueAtTime(isShip ? 440 : 760, now + 0.08);
+                gain.gain.setValueAtTime(0.07, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
                 osc.connect(gain);
-                gain.connect(this.ctx.destination);
+                gain.connect(this.masterGain);
                 osc.start(now);
-                osc.stop(now + 0.1);
+                osc.stop(now + 0.09);
             }
 
             playPadOrOrb(isPad = true) {
@@ -738,14 +821,14 @@
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = 'triangle';
-                osc.frequency.setValueAtTime(isPad ? 360 : 440, now);
-                osc.frequency.exponentialRampToValueAtTime(isPad ? 980 : 880, now + 0.14);
-                gain.gain.setValueAtTime(0.14, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.frequency.setValueAtTime(isPad ? 320 : 400, now);
+                osc.frequency.exponentialRampToValueAtTime(isPad ? 1100 : 980, now + 0.16);
+                gain.gain.setValueAtTime(0.13, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
                 osc.connect(gain);
-                gain.connect(this.ctx.destination);
+                gain.connect(this.masterGain);
                 osc.start(now);
-                osc.stop(now + 0.15);
+                osc.stop(now + 0.18);
             }
 
             playPortal() {
@@ -753,31 +836,36 @@
                 const now = this.ctx.currentTime;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(400, now);
+                filter.frequency.exponentialRampToValueAtTime(3000, now + 0.25);
                 osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(240, now);
-                osc.frequency.exponentialRampToValueAtTime(960, now + 0.22);
-                gain.gain.setValueAtTime(0.12, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.25);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.masterGain);
                 osc.start(now);
-                osc.stop(now + 0.24);
+                osc.stop(now + 0.28);
             }
 
             playCoin() {
                 if (this.muted || !this.ctx) return;
                 const now = this.ctx.currentTime;
-                [987.77, 1318.51].forEach((freq, i) => {
+                [880, 1108.73, 1318.51].forEach((freq, i) => {
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.type = 'sine';
-                    osc.frequency.setValueAtTime(freq, now + i * 0.07);
-                    gain.gain.setValueAtTime(0.14, now + i * 0.07);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.22);
+                    osc.frequency.setValueAtTime(freq, now + i * 0.06);
+                    gain.gain.setValueAtTime(0.12, now + i * 0.06);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.3);
                     osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start(now + i * 0.07);
-                    osc.stop(now + i * 0.07 + 0.22);
+                    gain.connect(this.masterGain);
+                    osc.start(now + i * 0.06);
+                    osc.stop(now + i * 0.06 + 0.3);
                 });
             }
 
@@ -786,38 +874,54 @@
                 const now = this.ctx.currentTime;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(800, now);
+                filter.frequency.exponentialRampToValueAtTime(80, now + 0.3);
                 osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(160, now);
-                osc.frequency.exponentialRampToValueAtTime(35, now + 0.28);
-                gain.gain.setValueAtTime(0.22, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.masterGain);
                 osc.start(now);
-                osc.stop(now + 0.3);
+                osc.stop(now + 0.35);
             }
 
             playVictory() {
                 if (this.muted || !this.ctx) return;
                 const now = this.ctx.currentTime;
-                [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                const melody = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+                melody.forEach((freq, i) => {
                     const osc = this.ctx.createOscillator();
                     const gain = this.ctx.createGain();
                     osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(freq, now + i * 0.09);
-                    gain.gain.setValueAtTime(0.15, now + i * 0.09);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.35);
+                    osc.frequency.setValueAtTime(freq, now + i * 0.1);
+                    gain.gain.setValueAtTime(0.14, now + i * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.5);
                     osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start(now + i * 0.09);
-                    osc.stop(now + i * 0.09 + 0.35);
+                    gain.connect(this.masterGain);
+                    osc.start(now + i * 0.1);
+                    osc.stop(now + i * 0.1 + 0.5);
                 });
+                const bass = this.ctx.createOscillator();
+                const bassGain = this.ctx.createGain();
+                bass.type = 'sine';
+                bass.frequency.setValueAtTime(130.81, now);
+                bassGain.gain.setValueAtTime(0.12, now);
+                bassGain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+                bass.connect(bassGain);
+                bassGain.connect(this.masterGain);
+                bass.start(now);
+                bass.stop(now + 1.2);
             }
 
             startMusic(levelIdx = 0, resetStep = true) {
                 this.init();
                 this.currentLevelIdx = levelIdx;
-                if (resetStep) this.step = 0;
+                if (resetStep) { this.step = 0; this.beatCount = 0; }
                 this.stopMusic();
                 this.isPlaying = true;
                 const lvl = LEVELS[levelIdx] || LEVELS[0];
@@ -828,43 +932,82 @@
 
             musicTick() {
                 if (!this.isPlaying) return;
-                if (this.step % 2 === 0) {
+                const lvl = LEVELS[this.currentLevelIdx] || LEVELS[0];
+                const beatInterval = 4;
+
+                if (this.step % beatInterval === 0) {
                     this.beatPulse = 1.0;
+                    this.beatCount++;
                 }
+
                 if (this.muted || !this.ctx) {
                     this.step++;
                     return;
                 }
 
                 const now = this.ctx.currentTime;
-                const lvl = LEVELS[this.currentLevelIdx] || LEVELS[0];
-                const note = lvl.melody[this.step % lvl.melody.length];
+                const melody = lvl.melody;
+                const note = melody[this.step % melody.length];
 
-                // Synth Lead
+                // Lead synth
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = this.step % 4 === 0 ? 'square' : 'triangle';
                 osc.frequency.setValueAtTime(note, now);
-                gain.gain.setValueAtTime(0.045, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+                gain.gain.setValueAtTime(0.04, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
                 osc.connect(gain);
-                gain.connect(this.ctx.destination);
+                gain.connect(this.masterGain);
                 osc.start(now);
-                osc.stop(now + 0.14);
+                osc.stop(now + 0.16);
 
-                // Kick & Bass on downbeats
+                // Bass on downbeats
+                if (this.step % 2 === 0) {
+                    const bass = this.ctx.createOscillator();
+                    const bassGain = this.ctx.createGain();
+                    bass.type = 'sine';
+                    const bassNote = this.step % 8 === 0 ? 65.41 : 98.0;
+                    bass.frequency.setValueAtTime(bassNote, now);
+                    bassGain.gain.setValueAtTime(0.08, now);
+                    bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+                    bass.connect(bassGain);
+                    bassGain.connect(this.masterGain);
+                    bass.start(now);
+                    bass.stop(now + 0.22);
+                }
+
+                // Kick drum
                 if (this.step % 2 === 0) {
                     const kick = this.ctx.createOscillator();
                     const kGain = this.ctx.createGain();
                     kick.type = 'sine';
-                    kick.frequency.setValueAtTime(135, now);
-                    kick.frequency.exponentialRampToValueAtTime(38, now + 0.09);
-                    kGain.gain.setValueAtTime(0.11, now);
-                    kGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    kick.frequency.setValueAtTime(150, now);
+                    kick.frequency.exponentialRampToValueAtTime(42, now + 0.1);
+                    kGain.gain.setValueAtTime(0.1, now);
+                    kGain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
                     kick.connect(kGain);
-                    kGain.connect(this.ctx.destination);
+                    kGain.connect(this.masterGain);
                     kick.start(now);
-                    kick.stop(now + 0.1);
+                    kick.stop(now + 0.11);
+                }
+
+                // Hi-hat on offbeats
+                if (this.step % 2 === 1) {
+                    const noise = this.ctx.createBufferSource();
+                    const noiseBuffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.03, this.ctx.sampleRate);
+                    const data = noiseBuffer.getChannelData(0);
+                    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+                    noise.buffer = noiseBuffer;
+                    const filter = this.ctx.createBiquadFilter();
+                    filter.type = 'highpass';
+                    filter.frequency.value = 7000;
+                    const hGain = this.ctx.createGain();
+                    hGain.gain.setValueAtTime(0.025, now);
+                    hGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+                    noise.connect(filter);
+                    filter.connect(hGain);
+                    hGain.connect(this.masterGain);
+                    noise.start(now);
                 }
 
                 this.step++;
@@ -1169,12 +1312,165 @@
                 this.orbTriggerReady = false;
                 this.lastTime = 0;
 
+                // New polish state
+                this.coyoteTime = 0;
+                this.wasGrounded = true;
+                this.flashTime = 0;
+                this.flashColor = '#ffffff';
+                this.flashAlpha = 0;
+                this.shockwaves = [];
+                this.stars = [];
+                this.floatShapes = [];
+                this.cameraZoom = 1.0;
+                this.cameraZoomTarget = 1.0;
+                this.victoryTime = 0;
+                this.newBestFlash = 0;
+                this.attemptStartX = 0;
+                this.deathPercent = 0;
+                this.screenFlashDuration = 0;
+                this.screenFlashElapsed = 0;
+                this.screenFlashColor = '#ffffff';
+                this.screenFlashIntensity = 0;
+                this.landDustCooldown = 0;
+                this.trailHue = 0;
+                this.bpmFlash = 0;
+                this.parallaxShapes = [];
+                this.initBackground();
+
                 this.initUI();
                 this.resize();
                 window.addEventListener('resize', () => this.resize());
                 this.bindInputs();
 
                 requestAnimationFrame((t) => this.loop(t));
+            }
+
+            initBackground() {
+                this.stars = [];
+                const starCount = 90;
+                for (let i = 0; i < starCount; i++) {
+                    this.stars.push({
+                        x: Math.random(),
+                        y: Math.random(),
+                        size: Math.random() * 2.2 + 0.4,
+                        speed: Math.random() * 0.08 + 0.01,
+                        twinkle: Math.random() * Math.PI * 2,
+                        twinkleSpeed: Math.random() * 2 + 0.5,
+                        hue: Math.random() < 0.3 ? 'cyan' : (Math.random() < 0.3 ? 'pink' : 'white')
+                    });
+                }
+                this.floatShapes = [];
+                for (let i = 0; i < 14; i++) {
+                    this.floatShapes.push({
+                        x: Math.random(),
+                        y: Math.random(),
+                        size: Math.random() * 40 + 20,
+                        speed: Math.random() * 0.02 + 0.005,
+                        rotSpeed: (Math.random() - 0.5) * 0.3,
+                        rotation: Math.random() * Math.PI * 2,
+                        sides: 3 + Math.floor(Math.random() * 3),
+                        opacity: Math.random() * 0.06 + 0.02,
+                        depth: Math.random() * 0.6 + 0.2
+                    });
+                }
+            }
+
+            spawnJumpDust() {
+                const skin = SKINS[this.selectedSkin];
+                for (let i = 0; i < 8; i++) {
+                    this.particles.push({
+                        x: this.player.x + this.player.w / 2 + (Math.random() - 0.5) * 12,
+                        y: this.player.y + this.player.h,
+                        vx: (Math.random() - 0.5) * 120,
+                        vy: -Math.random() * 60,
+                        size: 2 + Math.random() * 4,
+                        color: skin.primary,
+                        life: 0.3 + Math.random() * 0.2,
+                        maxLife: 0.5,
+                        gravity: 200
+                    });
+                }
+            }
+
+            spawnLandDust() {
+                const skin = SKINS[this.selectedSkin];
+                const impactY = this.player.gravityDir === 1 ? this.player.y + this.player.h : this.player.y;
+                for (let i = 0; i < 10; i++) {
+                    this.particles.push({
+                        x: this.player.x + this.player.w / 2 + (Math.random() - 0.5) * 20,
+                        y: impactY,
+                        vx: (Math.random() - 0.5) * 200,
+                        vy: (this.player.gravityDir === 1 ? -1 : 1) * Math.random() * 80,
+                        size: 2 + Math.random() * 5,
+                        color: i % 3 === 0 ? '#ffffff' : skin.primary,
+                        life: 0.35 + Math.random() * 0.25,
+                        maxLife: 0.6,
+                        gravity: 150 * this.player.gravityDir
+                    });
+                }
+                if (this.landDustCooldown <= 0) {
+                    this.shakeIntensity = Math.max(this.shakeIntensity, 2);
+                    this.shakeTime = Math.max(this.shakeTime, 0.08);
+                    this.landDustCooldown = 0.15;
+                }
+            }
+
+            spawnPortalBurst(x, y, color) {
+                for (let i = 0; i < 24; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 80 + Math.random() * 240;
+                    this.particles.push({
+                        x, y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        size: 2 + Math.random() * 5,
+                        color,
+                        life: 0.4 + Math.random() * 0.3,
+                        maxLife: 0.7,
+                        gravity: 0
+                    });
+                }
+            }
+
+            spawnCoinBurst(x, y) {
+                for (let i = 0; i < 16; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 60 + Math.random() * 180;
+                    this.particles.push({
+                        x, y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed - 80,
+                        size: 2 + Math.random() * 4,
+                        color: i % 2 === 0 ? '#ffe600' : '#ffffff',
+                        life: 0.5 + Math.random() * 0.3,
+                        maxLife: 0.8,
+                        gravity: 200
+                    });
+                }
+            }
+
+            spawnVictoryConfetti() {
+                const colors = ['#00f0ff', '#ff007f', '#ffe600', '#00f59b', '#b026ff', '#ff5500', '#ffffff'];
+                for (let i = 0; i < 120; i++) {
+                    this.particles.push({
+                        x: this.width / 2 + (Math.random() - 0.5) * 200,
+                        y: this.height * 0.3,
+                        vx: (Math.random() - 0.5) * 500,
+                        vy: -Math.random() * 400 - 100,
+                        size: 3 + Math.random() * 6,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        life: 1.5 + Math.random() * 1.5,
+                        maxLife: 3.0,
+                        gravity: 300
+                    });
+                }
+            }
+
+            triggerFlash(color, intensity, duration) {
+                this.screenFlashColor = color;
+                this.screenFlashIntensity = intensity;
+                this.screenFlashDuration = duration;
+                this.screenFlashElapsed = 0;
             }
 
             initUI() {
@@ -1400,6 +1696,7 @@
             startGame() {
                 this.attempts = 1;
                 this.checkpoints = [];
+                this.newBestFlash = 0;
                 document.getElementById('startScreen').classList.add('hidden');
                 document.getElementById('pauseScreen').classList.add('hidden');
                 document.getElementById('victoryScreen').classList.add('hidden');
@@ -1426,6 +1723,13 @@
                 this.inputHeld = false;
                 this.jumpBuffer = 0;
                 this.autoCheckpointTimer = 0;
+                this.coyoteTime = 0;
+                this.wasGrounded = true;
+                this.shockwaves = [];
+                this.deathPercent = 0;
+                this.landDustCooldown = 0;
+                this.cameraZoom = 1.0;
+                this.cameraZoomTarget = 1.0;
 
                 if (this.mode === 'NORMAL') {
                     this.levelData = LevelBuilder.buildLevel(this.selectedLevel);
@@ -1468,24 +1772,47 @@
             triggerCrash() {
                 if (this.player.dead) return;
                 this.player.dead = true;
-                this.player.deathTimer = 0.42;
-                this.shakeTime = 0.25;
-                this.shakeIntensity = 12;
+                this.player.deathTimer = 0.55;
+                this.shakeTime = 0.35;
+                this.shakeIntensity = 16;
                 this.sound.playCrash();
 
+                const cx = this.player.x + this.player.w / 2;
+                const cy = this.player.y + this.player.h / 2;
                 const skin = SKINS[this.selectedSkin];
-                for (let i = 0; i < 28; i++) {
+
+                // Death percentage
+                if (this.mode === 'NORMAL') {
+                    this.deathPercent = Math.min(100, Math.max(0, Math.floor((this.cameraX / this.levelData.length) * 100)));
+                }
+
+                // Shockwave ring
+                this.shockwaves.push({
+                    x: cx, y: cy, radius: 10, maxRadius: 140, life: 0.5, maxLife: 0.5,
+                    color: skin.primary, lineWidth: 4
+                });
+                this.shockwaves.push({
+                    x: cx, y: cy, radius: 5, maxRadius: 90, life: 0.35, maxLife: 0.35,
+                    color: '#ffffff', lineWidth: 2
+                });
+
+                // Screen flash
+                this.triggerFlash('#ff0044', 0.55, 0.25);
+
+                // Explosion particles
+                for (let i = 0; i < 36; i++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const speed = 120 + Math.random() * 440;
+                    const speed = 100 + Math.random() * 520;
                     this.particles.push({
-                        x: this.player.x + this.player.w / 2,
-                        y: this.player.y + this.player.h / 2,
+                        x: cx,
+                        y: cy,
                         vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed - 120,
-                        size: 4 + Math.random() * 7,
-                        color: i % 2 === 0 ? skin.primary : '#ffffff',
-                        life: 0.45 + Math.random() * 0.25,
-                        maxLife: 0.7
+                        vy: Math.sin(angle) * speed - 100,
+                        size: 3 + Math.random() * 8,
+                        color: i % 3 === 0 ? '#ffffff' : (i % 3 === 1 ? skin.primary : '#ff0044'),
+                        life: 0.5 + Math.random() * 0.35,
+                        maxLife: 0.85,
+                        gravity: 600
                     });
                 }
             }
@@ -1494,27 +1821,88 @@
                 this.state = 'VICTORY';
                 this.sound.stopMusic();
                 this.sound.playVictory();
+                this.victoryTime = 0;
 
+                // Check for new best before updating
                 if (!this.practiceMode) {
+                    if (this.bestLevelPct[this.selectedLevel] < 100) {
+                        this.newBestFlash = 2.5;
+                    }
                     this.bestLevelPct[this.selectedLevel] = 100;
                 }
 
                 const runCoins = this.levelData.objects.filter(o => o.type === 'coin' && o.collected).length;
                 document.getElementById('victoryAttempts').textContent = this.attempts;
                 document.getElementById('victoryCoins').textContent = `${runCoins} / 3`;
+
+                // Show new best badge
+                const newBestBadge = document.getElementById('newBestBadge');
+                if (this.newBestFlash > 0) {
+                    newBestBadge.style.display = 'block';
+                } else {
+                    newBestBadge.style.display = 'none';
+                }
+
                 document.getElementById('victoryScreen').classList.remove('hidden');
+
+                // Confetti burst
+                this.spawnVictoryConfetti();
+
+                // Victory shockwave
+                this.shockwaves.push({
+                    x: this.width / 2, y: this.height * 0.35,
+                    radius: 10, maxRadius: 300, life: 1.0, maxLife: 1.0,
+                    color: '#ffe600', lineWidth: 6
+                });
+
+                this.triggerFlash('#ffffff', 0.3, 0.4);
             }
 
             update(dt) {
                 this.sound.beatPulse = Math.max(0, this.sound.beatPulse - dt * 3.5);
                 if (this.shakeTime > 0) this.shakeTime = Math.max(0, this.shakeTime - dt);
+                if (this.landDustCooldown > 0) this.landDustCooldown -= dt;
+                if (this.newBestFlash > 0) this.newBestFlash -= dt;
+                if (this.victoryTime >= 0) this.victoryTime += dt;
+
+                // Screen flash decay
+                if (this.screenFlashDuration > 0) {
+                    this.screenFlashElapsed += dt;
+                    if (this.screenFlashElapsed >= this.screenFlashDuration) {
+                        this.screenFlashDuration = 0;
+                    }
+                }
+
+                // Camera zoom lerp
+                this.cameraZoom += (this.cameraZoomTarget - this.cameraZoom) * Math.min(1, dt * 8);
+
+                // Update shockwaves
+                for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+                    const sw = this.shockwaves[i];
+                    sw.life -= dt;
+                    const t = 1 - sw.life / sw.maxLife;
+                    sw.radius = sw.maxRadius * (1 - Math.pow(1 - t, 3));
+                    if (sw.life <= 0) this.shockwaves.splice(i, 1);
+                }
+
+                // Update background
+                for (const star of this.stars) {
+                    star.twinkle += star.twinkleSpeed * dt;
+                    star.y += star.speed * dt * 0.02;
+                    if (star.y > 1) { star.y = 0; star.x = Math.random(); }
+                }
+                for (const shape of this.floatShapes) {
+                    shape.rotation += shape.rotSpeed * dt;
+                    shape.y -= shape.speed * dt * 0.1;
+                    if (shape.y < -0.2) { shape.y = 1.2; shape.x = Math.random(); }
+                }
 
                 // Update particles even during crash
                 for (let i = this.particles.length - 1; i >= 0; i--) {
                     const pt = this.particles[i];
                     pt.x += pt.vx * dt;
                     pt.y += pt.vy * dt;
-                    pt.vy += 900 * dt;
+                    pt.vy += (pt.gravity || 900) * dt;
                     pt.life -= dt;
                     if (pt.life <= 0) this.particles.splice(i, 1);
                 }
@@ -1529,6 +1917,21 @@
                     }
                     return;
                 }
+
+                // Coyote time
+                if (this.wasGrounded && !this.player.grounded) {
+                    this.coyoteTime = 0.1;
+                } else if (this.coyoteTime > 0) {
+                    this.coyoteTime -= dt;
+                }
+
+                // Landing detection
+                if (this.player.grounded && !this.wasGrounded && !this.player.dead) {
+                    this.spawnLandDust();
+                    this.cameraZoomTarget = 0.97;
+                    setTimeout(() => { if (this.state === 'PLAYING') this.cameraZoomTarget = 1.0; }, 80);
+                }
+                this.wasGrounded = this.player.grounded;
 
                 // Advance horizontal scroll
                 const currentSpeed = BASE_SPEED * this.speedMult;
@@ -1554,16 +1957,21 @@
                 }
 
                 // Trail particles
+                this.trailHue += dt * 30;
+                const trailColor = this.player.vehicle === 'ship'
+                    ? `hsl(${(this.trailHue + 180) % 360}, 100%, 60%)`
+                    : SKINS[this.selectedSkin].primary;
                 this.trail.push({
                     x: this.player.x + this.player.w * 0.25,
                     y: this.player.y + this.player.h * 0.5,
-                    alpha: 0.65,
-                    size: this.player.h * 0.55
+                    alpha: 0.7,
+                    size: this.player.h * 0.55,
+                    color: trailColor
                 });
-                if (this.trail.length > 18) this.trail.shift();
+                if (this.trail.length > 22) this.trail.shift();
                 this.trail.forEach(t => {
                     t.x -= currentSpeed * dt;
-                    t.alpha -= dt * 2.2;
+                    t.alpha -= dt * 2.0;
                 });
 
                 // Physics Integration (Cube vs Ship, Normal vs Flipped Gravity)
@@ -1579,12 +1987,15 @@
                     this.player.vy = Math.max(-SHIP_MAX_VY, Math.min(SHIP_MAX_VY, this.player.vy));
                     this.player.rotation = Math.max(-0.55, Math.min(0.55, this.player.vy / 850));
                 } else {
-                    // Cube jump when grounded & jump held/buffered
-                    if (this.player.grounded && (this.inputHeld || this.jumpBuffer > 0)) {
+                    // Cube jump when grounded (with coyote time) & jump held/buffered
+                    const canJump = this.player.grounded || this.coyoteTime > 0;
+                    if (canJump && (this.inputHeld || this.jumpBuffer > 0)) {
                         this.player.vy = JUMP_VELOCITY * gDir;
                         this.player.grounded = false;
+                        this.coyoteTime = 0;
                         this.jumpBuffer = 0;
                         this.sound.playJump(false);
+                        this.spawnJumpDust();
                     }
                     this.player.vy += GRAVITY * gDir * dt;
                     if (!this.player.grounded) {
@@ -1683,6 +2094,12 @@
                             this.player.vy = PAD_VELOCITY * gDir;
                             this.player.grounded = false;
                             this.sound.playPadOrOrb(true);
+                            this.spawnJumpDust();
+                            this.shockwaves.push({
+                                x: obj.x + obj.w / 2, y: objTop,
+                                radius: 5, maxRadius: 50, life: 0.3, maxLife: 0.3,
+                                color: '#ffe600', lineWidth: 2
+                            });
                         }
                     } else if (obj.type === 'orb') {
                         const orbY = this.groundY - obj.y;
@@ -1694,12 +2111,29 @@
                             this.orbTriggerReady = false;
                             this.jumpBuffer = 0;
                             this.sound.playPadOrOrb(false);
+                            this.spawnJumpDust();
+                            this.shockwaves.push({
+                                x: obj.x, y: orbY,
+                                radius: 5, maxRadius: 60, life: 0.35, maxLife: 0.35,
+                                color: '#ffe600', lineWidth: 2
+                            });
                         }
                     } else if (obj.type === 'portal' && !obj.triggered) {
                         if (pBox.right > obj.x && pBox.left < obj.x + obj.w &&
                             pBox.bottom > objTop && pBox.top < objBottom) {
                             obj.triggered = true;
                             this.sound.playPortal();
+                            const colors = {
+                                ship: '#ff007f', cube: '#00f59b', gravity_up: '#ffe600',
+                                gravity_down: '#00f0ff', speed_fast: '#ff6a00'
+                            };
+                            const col = colors[obj.portalType] || '#00f0ff';
+                            this.spawnPortalBurst(obj.x + obj.w / 2, objTop + obj.h / 2, col);
+                            this.shockwaves.push({
+                                x: obj.x + obj.w / 2, y: objTop + obj.h / 2,
+                                radius: 10, maxRadius: 120, life: 0.5, maxLife: 0.5,
+                                color: col, lineWidth: 3
+                            });
                             if (obj.portalType === 'ship') {
                                 this.player.vehicle = 'ship';
                                 this.player.gravityDir = 1;
@@ -1722,6 +2156,12 @@
                         if (Math.hypot(dx, dy) < obj.r + this.player.w * 0.5) {
                             obj.collected = true;
                             this.sound.playCoin();
+                            this.spawnCoinBurst(obj.x, coinY);
+                            this.shockwaves.push({
+                                x: obj.x, y: coinY,
+                                radius: 5, maxRadius: 70, life: 0.4, maxLife: 0.4,
+                                color: '#ffe600', lineWidth: 3
+                            });
                             if (!this.practiceMode && this.mode === 'NORMAL') {
                                 this.collectedCoins[this.selectedLevel][obj.coinIndex] = true;
                             }
@@ -1732,7 +2172,10 @@
                 // HUD Progress Updates
                 if (this.mode === 'NORMAL') {
                     const pct = Math.min(100, Math.max(0, Math.floor((this.cameraX / this.levelData.length) * 100)));
-                    document.getElementById('progress-bar-fill').style.width = `${pct}%`;
+                    const fill = document.getElementById('progress-bar-fill');
+                    fill.style.width = `${pct}%`;
+                    fill.classList.toggle('danger', pct >= 85 && pct < 100);
+                    fill.classList.toggle('complete', pct >= 100);
                     document.getElementById('progress-text').textContent =
                         `${LEVELS[this.selectedLevel].name.toUpperCase()} • ${pct}%${this.practiceMode ? ' (PRACTICE)' : ''}`;
                     if (!this.practiceMode && pct > this.bestLevelPct[this.selectedLevel]) {
@@ -1745,7 +2188,9 @@
                     const meters = Math.floor(this.cameraX / TILE);
                     if (meters > this.bestEndlessMeters) this.bestEndlessMeters = meters;
                     const barPct = ((meters % 100) / 100) * 100;
-                    document.getElementById('progress-bar-fill').style.width = `${barPct}%`;
+                    const fill = document.getElementById('progress-bar-fill');
+                    fill.style.width = `${barPct}%`;
+                    fill.classList.remove('danger', 'complete');
                     document.getElementById('progress-text').textContent = `ENDLESS • ${meters}m (BEST: ${this.bestEndlessMeters}m)`;
                 }
             }
@@ -1757,6 +2202,16 @@
                     : { bgTop: '#0b0e29', bgBottom: '#1c1242', accent: '#00f0ff', ground: '#0f172a' };
 
                 ctx.save();
+
+                // Camera zoom
+                const zoom = this.cameraZoom;
+                if (zoom !== 1.0) {
+                    ctx.translate(this.width / 2, this.height / 2);
+                    ctx.scale(zoom, zoom);
+                    ctx.translate(-this.width / 2, -this.height / 2);
+                }
+
+                // Screen shake
                 if (this.shakeTime > 0) {
                     const sx = (Math.random() - 0.5) * this.shakeIntensity;
                     const sy = (Math.random() - 0.5) * this.shakeIntensity;
@@ -1770,8 +2225,59 @@
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, this.width, this.height);
 
+                // Beat-reactive radial glow from center
+                if (this.sound.beatPulse > 0.01) {
+                    const cx = this.width / 2;
+                    const cy = this.height * 0.4;
+                    const glowRadius = Math.max(this.width, this.height) * 0.6;
+                    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+                    const glowAlpha = this.sound.beatPulse * 0.08;
+                    glow.addColorStop(0, `rgba(0, 240, 255, ${glowAlpha})`);
+                    glow.addColorStop(0.5, `rgba(255, 0, 127, ${glowAlpha * 0.3})`);
+                    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = glow;
+                    ctx.fillRect(0, 0, this.width, this.height);
+                }
+
+                // Starfield (parallax)
+                for (const star of this.stars) {
+                    const sx = ((star.x - this.cameraX * 0.002 * star.size) % 1 + 1) % 1 * this.width;
+                    const sy = star.y * this.height;
+                    const twinkleAlpha = 0.3 + Math.sin(star.twinkle) * 0.3;
+                    let color;
+                    if (star.hue === 'cyan') color = `rgba(0, 240, 255, ${twinkleAlpha})`;
+                    else if (star.hue === 'pink') color = `rgba(255, 0, 127, ${twinkleAlpha})`;
+                    else color = `rgba(255, 255, 255, ${twinkleAlpha})`;
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, star.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Floating geometric shapes (parallax depth)
+                for (const shape of this.floatShapes) {
+                    const sx = ((shape.x - this.cameraX * 0.0008 * shape.depth) % 1.3 + 1.3) % 1.3 * this.width - this.width * 0.15;
+                    const sy = shape.y * this.height;
+                    ctx.save();
+                    ctx.translate(sx, sy);
+                    ctx.rotate(shape.rotation);
+                    ctx.beginPath();
+                    for (let i = 0; i < shape.sides; i++) {
+                        const angle = (i / shape.sides) * Math.PI * 2 - Math.PI / 2;
+                        const px = Math.cos(angle) * shape.size;
+                        const py = Math.sin(angle) * shape.size;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${shape.opacity})`;
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
                 // Parallax Background Grid
-                const pulseAlpha = 0.06 + this.sound.beatPulse * 0.06;
+                const pulseAlpha = 0.06 + this.sound.beatPulse * 0.08;
                 ctx.strokeStyle = `rgba(255, 255, 255, ${pulseAlpha})`;
                 ctx.lineWidth = 1;
                 const gridSpacing = 96;
@@ -1791,7 +2297,7 @@
                 ctx.strokeStyle = lvlTheme.accent;
                 ctx.lineWidth = 3;
                 ctx.shadowColor = lvlTheme.accent;
-                ctx.shadowBlur = 12;
+                ctx.shadowBlur = 12 + this.sound.beatPulse * 8;
                 ctx.beginPath();
                 ctx.moveTo(0, this.groundY);
                 ctx.lineTo(this.width, this.groundY);
@@ -1829,9 +2335,14 @@
                         ctx.fillRect(screenX, objTop, obj.w, obj.h);
                         ctx.strokeStyle = lvlTheme.accent;
                         ctx.lineWidth = 2;
+                        ctx.shadowColor = lvlTheme.accent;
+                        ctx.shadowBlur = 4;
                         ctx.strokeRect(screenX, objTop, obj.w, obj.h);
+                        ctx.shadowBlur = 0;
                     } else if (obj.type === 'spike') {
                         ctx.fillStyle = '#ff0055';
+                        ctx.shadowColor = '#ff0055';
+                        ctx.shadowBlur = 8 + this.sound.beatPulse * 6;
                         ctx.strokeStyle = '#ffffff';
                         ctx.lineWidth = 1.8;
                         ctx.beginPath();
@@ -1847,21 +2358,26 @@
                         ctx.closePath();
                         ctx.fill();
                         ctx.stroke();
+                        ctx.shadowBlur = 0;
                     } else if (obj.type === 'pad') {
                         ctx.fillStyle = '#ffe600';
                         ctx.shadowColor = '#ffe600';
-                        ctx.shadowBlur = 12;
+                        ctx.shadowBlur = 12 + this.sound.beatPulse * 8;
                         ctx.fillRect(screenX + 4, objTop, obj.w - 8, obj.h);
                         ctx.shadowBlur = 0;
                     } else if (obj.type === 'orb') {
                         const orbY = this.groundY - obj.y;
+                        const orbPulse = 1 + Math.sin(this.sound.beatPulse * Math.PI) * 0.1;
                         ctx.beginPath();
-                        ctx.arc(screenX, orbY, obj.r, 0, Math.PI * 2);
+                        ctx.arc(screenX, orbY, obj.r * orbPulse, 0, Math.PI * 2);
                         ctx.fillStyle = 'rgba(255, 230, 0, 0.35)';
+                        ctx.shadowColor = '#ffe600';
+                        ctx.shadowBlur = 10 + this.sound.beatPulse * 8;
                         ctx.fill();
                         ctx.lineWidth = 3;
                         ctx.strokeStyle = '#ffe600';
                         ctx.stroke();
+                        ctx.shadowBlur = 0;
                     } else if (obj.type === 'portal') {
                         const colors = {
                             ship: '#ff007f',
@@ -1871,19 +2387,24 @@
                             speed_fast: '#ff6a00'
                         };
                         const col = colors[obj.portalType] || '#00f0ff';
+                        const portalPulse = 1 + Math.sin(Date.now() * 0.003) * 0.05;
                         ctx.strokeStyle = col;
                         ctx.lineWidth = 4;
                         ctx.shadowColor = col;
-                        ctx.shadowBlur = 16;
+                        ctx.shadowBlur = 16 + this.sound.beatPulse * 10;
                         ctx.strokeRect(screenX, objTop, obj.w, obj.h);
+                        // Inner glow
+                        ctx.fillStyle = `${col}22`;
+                        ctx.fillRect(screenX + 4, objTop + 4, obj.w - 8, obj.h - 8);
                         ctx.shadowBlur = 0;
                     } else if (obj.type === 'coin' && !obj.collected) {
                         const coinY = this.groundY - obj.y;
+                        const coinSpin = Date.now() * 0.002;
                         ctx.beginPath();
-                        ctx.arc(screenX, coinY, obj.r, 0, Math.PI * 2);
+                        ctx.ellipse(screenX, coinY, Math.abs(Math.cos(coinSpin)) * obj.r + 2, obj.r, 0, 0, Math.PI * 2);
                         ctx.fillStyle = '#ffe600';
                         ctx.shadowColor = '#ffe600';
-                        ctx.shadowBlur = 14;
+                        ctx.shadowBlur = 14 + this.sound.beatPulse * 8;
                         ctx.fill();
                         ctx.strokeStyle = '#ffffff';
                         ctx.lineWidth = 2;
@@ -1901,20 +2422,24 @@
                         ctx.translate(cx, cy);
                         ctx.rotate(Math.PI / 4);
                         ctx.fillStyle = '#00f59b';
+                        ctx.shadowColor = '#00f59b';
+                        ctx.shadowBlur = 10;
                         ctx.fillRect(-8, -8, 16, 16);
                         ctx.restore();
                     }
                 }
 
                 // Render Trail
-                const skin = SKINS[this.selectedSkin];
                 for (const t of this.trail) {
                     if (t.alpha <= 0) continue;
-                    ctx.fillStyle = skin.primary;
+                    ctx.fillStyle = t.color || SKINS[this.selectedSkin].primary;
                     ctx.globalAlpha = Math.max(0, t.alpha * 0.35);
+                    ctx.shadowColor = t.color || SKINS[this.selectedSkin].primary;
+                    ctx.shadowBlur = 8;
                     ctx.fillRect(t.x - t.size / 2, t.y - t.size / 2, t.size, t.size);
                 }
                 ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
 
                 // Render Player (Cube or Rocket Ship)
                 if (!this.player.dead) {
@@ -1925,10 +2450,27 @@
 
                     const hw = this.player.w / 2;
                     const hh = this.player.h / 2;
+                    const skin = SKINS[this.selectedSkin];
 
                     if (this.player.vehicle === 'ship') {
+                        // Engine flame
+                        const flameLength = 14 + Math.random() * 10 + (this.inputHeld ? 12 : 0);
+                        const flameGradient = ctx.createLinearGradient(-hw, 0, -hw - flameLength, 0);
+                        flameGradient.addColorStop(0, skin.primary);
+                        flameGradient.addColorStop(0.5, '#ff6a00');
+                        flameGradient.addColorStop(1, 'rgba(255, 106, 0, 0)');
+                        ctx.fillStyle = flameGradient;
+                        ctx.beginPath();
+                        ctx.moveTo(-hw + 4, -4);
+                        ctx.lineTo(-hw - flameLength, 0);
+                        ctx.lineTo(-hw + 4, 4);
+                        ctx.closePath();
+                        ctx.fill();
+
                         // Rocket Ship Hull
                         ctx.fillStyle = skin.primary;
+                        ctx.shadowColor = skin.primary;
+                        ctx.shadowBlur = 12;
                         ctx.strokeStyle = '#ffffff';
                         ctx.lineWidth = 2.5;
                         ctx.beginPath();
@@ -1938,6 +2480,7 @@
                         ctx.lineTo(-hw, hh * 0.85);
                         ctx.closePath();
                         ctx.fill();
+                        ctx.shadowBlur = 0;
                         ctx.stroke();
 
                         // Cockpit Pilot Cube
@@ -1949,7 +2492,7 @@
                         // Classic Geometry Cube
                         ctx.fillStyle = skin.primary;
                         ctx.shadowColor = skin.primary;
-                        ctx.shadowBlur = 14;
+                        ctx.shadowBlur = 14 + this.sound.beatPulse * 6;
                         ctx.fillRect(-hw, -hh, this.player.w, this.player.h);
                         ctx.shadowBlur = 0;
 
@@ -1968,20 +2511,68 @@
                     ctx.restore();
                 }
 
+                // Render Shockwaves
+                for (const sw of this.shockwaves) {
+                    const alpha = sw.life / sw.maxLife;
+                    ctx.globalAlpha = alpha;
+                    ctx.strokeStyle = sw.color;
+                    ctx.lineWidth = sw.lineWidth;
+                    ctx.shadowColor = sw.color;
+                    ctx.shadowBlur = 12;
+                    ctx.beginPath();
+                    ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+
                 // Render Crash Particles
                 for (const pt of this.particles) {
                     ctx.fillStyle = pt.color;
                     ctx.globalAlpha = Math.max(0, pt.life / pt.maxLife);
+                    ctx.shadowColor = pt.color;
+                    ctx.shadowBlur = 6;
                     ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
                 }
                 ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
 
                 // Attempt Counter Text
                 if (this.state === 'PLAYING') {
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
                     ctx.font = '800 20px Orbitron, sans-serif';
-                    ctx.fillText(`ATTEMPT ${this.attempts}`, Math.max(24, 140 - this.cameraX * 0.5), this.groundY - 120);
+                    const attemptX = Math.max(24, 140 - this.cameraX * 0.5);
+                    ctx.fillText(`ATTEMPT ${this.attempts}`, attemptX, this.groundY - 120);
+
+                    // Death percentage display during death
+                    if (this.player.dead && this.mode === 'NORMAL') {
+                        ctx.fillStyle = 'rgba(255, 0, 68, 0.9)';
+                        ctx.font = '900 48px Orbitron, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(`${this.deathPercent}%`, this.width / 2, this.height * 0.4);
+                        ctx.textAlign = 'left';
+                    }
                 }
+
+                // Screen flash overlay
+                if (this.screenFlashDuration > 0) {
+                    const flashT = 1 - (this.screenFlashElapsed / this.screenFlashDuration);
+                    const alpha = flashT * this.screenFlashIntensity;
+                    ctx.fillStyle = this.screenFlashColor;
+                    ctx.globalAlpha = alpha;
+                    ctx.fillRect(0, 0, this.width, this.height);
+                    ctx.globalAlpha = 1;
+                }
+
+                // Vignette
+                const vignette = ctx.createRadialGradient(
+                    this.width / 2, this.height / 2, this.height * 0.3,
+                    this.width / 2, this.height / 2, Math.max(this.width, this.height) * 0.7
+                );
+                vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vignette.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+                ctx.fillStyle = vignette;
+                ctx.fillRect(0, 0, this.width, this.height);
 
                 ctx.restore();
             }
